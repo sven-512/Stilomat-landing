@@ -1269,5 +1269,54 @@
 
     document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
   </script>
+
+  <!-- Klick-Zähler für den Marketing-Loop (B16). Zählt nur Besuche mit UTM-Parametern,
+       also solche aus einem Post oder Bio-Link. Ohne utm_source+utm_campaign passiert nichts.
+
+       Kein Personenbezug: gespeichert werden Quelle, Kampagne, Post-Kennung und Pfad —
+       keine IP, kein Fingerprint, kein Cookie. Deshalb auch kein Consent-Banner nötig.
+
+       Der Schlüssel steht bewusst im Quelltext. Es ist ein Publishable Key, und die
+       Datenbank erlaubt der anon-Rolle projektweit ausschließlich INSERT in drei Tabellen
+       (marketing_clicks, marketing_conversions, waitlist) — gelesen werden kann nichts.
+       Am 09.09.2026 gegen pg_policy geprüft: jede Tabelle hat RLS, alles andere ist
+       authenticated-only. -->
+  <script>
+    (function () {
+      var SUPABASE = 'https://muinxzfviukhlcafdgcc.supabase.co';
+      var KEY = 'sb_publishable_7Xy5I6_GCP8neVfTrCY3eg_UImSUDe6';
+      try {
+        var q = new URLSearchParams(location.search);
+        var source = q.get('utm_source');
+        var campaign = q.get('utm_campaign');
+        if (!source || !campaign) return;
+        if (/bot|crawl|spider|preview|facebookexternalhit/i.test(navigator.userAgent)) return;
+        // Ein Reload derselben Seite darf nicht doppelt zählen.
+        var mark = 'mc:' + source + ':' + campaign + ':' + (q.get('utm_content') || '');
+        if (sessionStorage.getItem(mark)) return;
+        sessionStorage.setItem(mark, '1');
+        fetch(SUPABASE + '/rest/v1/marketing_clicks', {
+          method: 'POST',
+          headers: {
+            apikey: KEY,
+            Authorization: 'Bearer ' + KEY,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            product: 'stilomat',
+            utm_source: source,
+            utm_campaign: campaign,
+            utm_content: q.get('utm_content'),
+            path: location.pathname
+          }),
+          keepalive: true
+        }).catch(function () {});
+      } catch (e) {
+        // Die Seite darf hieran nie scheitern — sessionStorage wirft z. B. in manchen
+        // privaten Modi schon beim Zugriff.
+      }
+    })();
+  </script>
 </body>
 </html>
